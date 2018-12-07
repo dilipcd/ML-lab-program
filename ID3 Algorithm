@@ -1,0 +1,76 @@
+from collections import Counter
+from pprint import pprint
+import pandas as pd
+import math
+
+
+# -p*log2*p
+def entropy(probabilities):
+    return sum([-probability * math.log(probability, 2) for probability in probabilities])
+
+
+def entropy_of_list(a_list):
+    cnt = Counter(x for x in a_list)
+    num_instances = len(a_list)
+    probabilities = [x / num_instances for x in cnt.values()]
+    return entropy(probabilities)
+
+
+def information_gain(dataset, split_attribute_name, target_attribute_name):
+    dataset_split = dataset.groupby(split_attribute_name)
+    nobs = len(dataset.index)
+    df_agg_ent = dataset_split.agg({target_attribute_name: [entropy_of_list, lambda x: len(x) / nobs]})[
+        target_attribute_name]
+    df_agg_ent.columns = ['Entropy', 'PropObservations']
+    new_entropy = sum(df_agg_ent['Entropy'] * df_agg_ent['PropObservations'])
+    old_entropy = entropy_of_list(dataset[target_attribute_name])
+    return old_entropy - new_entropy
+
+
+def id3(dataset, target_attribute, attribute_names, default_class=None):
+    cnt = Counter(x for x in dataset[target_attribute])
+    if len(cnt) == 1:
+        return list(cnt.keys())[0]
+    elif dataset.empty or (not attribute_names):
+        return default_class
+    else:
+
+        default_class = cnt.most_common()[0][0]
+        gains = [information_gain(dataset, attribute, target_attribute) for attribute in attribute_names]
+        best_attr = attribute_names[gains.index(max(gains))]
+
+        tree = {best_attr: {}}
+        remaining_attribute_names = [i for i in attribute_names if i !=
+                                     best_attr]
+        for attr_val, data_subset in dataset.groupby(best_attr):
+            subtree = id3(data_subset, target_attribute,
+                          remaining_attribute_names, default_class)
+            tree[best_attr][attr_val] = subtree
+    return tree
+
+
+def print_dict(dictionary, ident=''):
+    """ Recursively prints nested dictionaries."""
+
+    for key, value in dictionary.items():
+        if isinstance(value, dict):
+            print('%s%s' %(ident,key)) 
+            print_dict(value,ident+'  ')
+        else:
+            print(ident+'%s\n\t%s' %(key,value))
+
+
+def main():
+    dataset = pd.read_csv('C://Users//Deepen//Downloads//data3.csv')
+
+    print(dataset)
+    attribute_names = list(dataset.columns)
+    attribute_names.remove('Answer')
+
+    tree = id3(dataset, 'Answer', attribute_names)
+    print("The Resultant Decision Tree is :")
+    pprint(tree)
+    print_dict(tree)
+    
+    
+main()
